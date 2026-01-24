@@ -18,7 +18,8 @@ is violated. They're called before the tool runs, preventing the
 forbidden operation entirely.
 
 Available guards:
-  pr-workflow   - Block PR creation and feature branches
+  pr-workflow   - Block PR creation and feature branches (all agents)
+  polecat       - Block git push and PR workflow (polecats only)
 
 Example hook configuration:
   {
@@ -51,9 +52,33 @@ witness, etc.). Humans running outside Gas Town can still use PRs.`,
 	RunE: runTapGuardPRWorkflow,
 }
 
+var tapGuardPolecatCmd = &cobra.Command{
+	Use:   "polecat",
+	Short: "Block polecat-forbidden git operations",
+	Long: `Block git operations that polecats should not use directly.
+
+Polecats must use 'gt done' to submit work to the merge queue.
+Direct git push or PR workflows break the Refinery merge model.
+
+This guard blocks:
+  - git push (any push operation)
+  - gh pr create
+  - git checkout -b (feature branches)
+  - git switch -c (feature branches)
+
+Exit codes:
+  0 - Operation allowed (not a polecat)
+  2 - Operation BLOCKED (polecat context)
+
+The guard only blocks when running as a polecat. Other roles and
+humans are unaffected.`,
+	RunE: runTapGuardPolecat,
+}
+
 func init() {
 	tapCmd.AddCommand(tapGuardCmd)
 	tapGuardCmd.AddCommand(tapGuardPRWorkflowCmd)
+	tapGuardCmd.AddCommand(tapGuardPolecatCmd)
 }
 
 func runTapGuardPRWorkflow(cmd *cobra.Command, args []string) error {
@@ -113,4 +138,43 @@ func isGasTownAgentContext() bool {
 	}
 
 	return false
+}
+
+// isPolecatContext returns true if we're running as a polecat.
+func isPolecatContext() bool {
+	// Check environment variable
+	if os.Getenv("GT_POLECAT") != "" {
+		return true
+	}
+
+	// Check if we're in a polecat worktree by path
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(cwd, "/polecats/")
+}
+
+func runTapGuardPolecat(cmd *cobra.Command, args []string) error {
+	// Check if we're in a polecat context
+	if !isPolecatContext() {
+		// Not a polecat - allow the operation
+		return nil
+	}
+
+	// We're a polecat - block the operation
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════════════════════════════════╗")
+	fmt.Fprintln(os.Stderr, "║  ❌ POLECAT RESTRICTION                                          ║")
+	fmt.Fprintln(os.Stderr, "╠══════════════════════════════════════════════════════════════════╣")
+	fmt.Fprintln(os.Stderr, "║  Polecats use gt done to submit work. Direct git push forbidden. ║")
+	fmt.Fprintln(os.Stderr, "║                                                                  ║")
+	fmt.Fprintln(os.Stderr, "║  Instead of:  git push / gh pr create / feature branches         ║")
+	fmt.Fprintln(os.Stderr, "║  Do this:     gt done                                            ║")
+	fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════════════════════════════════╝")
+	fmt.Fprintln(os.Stderr, "")
+	os.Exit(2) // Exit 2 = BLOCK in Claude Code hooks
+
+	return nil
 }

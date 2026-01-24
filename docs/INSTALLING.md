@@ -278,6 +278,49 @@ bd sync --status           # Check sync status
 bd doctor                  # Run beads health check
 ```
 
+## Building from Source
+
+For development or to run a custom version:
+
+```bash
+# Clone the repository
+git clone https://github.com/steveyegge/gastown.git
+cd gastown
+
+# Build the binary
+go build -o gt ./cmd/gt
+
+# Run directly
+./gt version
+
+# Or install to your PATH
+cp gt ~/bin/gt  # or: go install ./cmd/gt
+```
+
+**Note**: If you have both a locally-built `gt` and an installed one, ensure your PATH uses the desired version first:
+
+```bash
+# Prefer local build (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/bin:$PATH"
+```
+
+### Development Workflow
+
+```bash
+# Make changes
+vim internal/cmd/tap_guard.go
+
+# Rebuild
+go build -o gt ./cmd/gt
+
+# Test immediately
+./gt tap guard --help
+```
+
+### Troubleshooting Binary Conflicts
+
+If `gt` gets killed (exit code 137) when run from `$GOPATH/bin` but works from `/tmp` or `$HOME/bin`, this may be a macOS security policy or endpoint protection system. Solution: use `~/bin` for local builds.
+
 ## Updating
 
 To update Gas Town and Beads:
